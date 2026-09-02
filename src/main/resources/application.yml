@@ -1,0 +1,185 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: rag-demo
+  
+  # MySQL Configuration
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/ardm?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  # Redis Configuration for Chat Memory
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+# LangChain4j Configuration
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: ${DASHSCOPE_API_KEY:sk-9ce1c5bd677c46c7b2ebeae50b3ec19b}
+      model-name: qwen-plus
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      temperature: 0.7
+      timeout: 60s
+    
+    embedding-model:
+      api-key: ${DASHSCOPE_API_KEY:sk-9ce1c5bd677c46c7b2ebeae50b3ec19b}
+      model-name: text-embedding-v3
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      dimensions: 1536
+      max-segments-per-batch: 10
+      timeout: 60s
+
+# Milvus Configuration (必须组件 - 向量存储核心)
+# 最小启动依赖: MySQL + Redis + Milvus + DASHSCOPE_API_KEY
+# 可选增强: elasticsearch.enable=true (BM25 关键词检索精度更高)
+milvus:
+  host: ${MILVUS_HOST:localhost}
+  port: ${MILVUS_PORT:19530}
+  database: default
+  collection: rag_demo_collection
+  index-type: IVF_FLAT
+  metric-type: COSINE
+  nlist: 128
+  enable: true  # Milvus 为必须依赖，请勿关闭
+
+# Elasticsearch Configuration (可选组件)
+# 最小启动依赖: MySQL + Redis + Milvus (无需 ES)
+# 开启 ES: 将 enable 改为 true，并确保 ES 服务可达
+# ES 关闭时：关键词检索自动降级为 MySQL LIKE，混合检索流程保持可用
+elasticsearch:
+  uris: ${ES_URIS:http://localhost:9200}
+  index-name: rag_demo_index
+  similarity-threshold: 0.6
+  enable: ${ES_ENABLE:false}  # 默认关闭，生产建议开启以获得更好的 BM25 关键词检索精度
+
+# MinIO Configuration (for image storage)
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: rag-demo-images
+  enable: false  # 默认禁用，需要时启用
+
+# RAG Configuration
+rag:
+  document:
+    upload-dir: ./uploads
+    supported-formats: pdf,doc,docx,md,markdown,txt,xlsx,xls,csv
+    auto-split: true  # 是否自动切片
+    batch-max-size: 20  # 批量上传最大文件数
+
+  chat:
+    memory:
+      redis-key-prefix: "rag-demo:chat-memory:"
+      ttl-hours: 1
+      window-size: 10
+  
+  splitting:
+    strategies: TITLE,HYBRID,OVERLAP  # 多种分割策略组合：标题分割+混合分割+重叠分割
+    chunk-size: 500
+    overlap: 50
+    min-chunk-size: 100
+    max-chunk-size: 1000
+    markdown-headers: "#,##,###"  # Markdown标题层级
+  
+  retrieval:
+    vector-top-k: 100  # 向量检索返回数量（三重过滤）
+    keyword-top-k: 100  # 关键词检索返回数量（三重过滤）
+    metadata-top-k: 100  # 元数据检索返回数量（三重过滤）
+    rrf-top-k: 20  # RRF融合后保留数量
+    coarse-top-k: 10  # 粗排后保留数量
+    fine-top-k: 5  # 精排后最终返回数量
+    similarity-threshold: 0.6
+    enable-hybrid: true  # 启用完整混合检索流程
+    enable-rerank: true  # 启用重排序
+    enable-multi-source-routing: false  # 多数据源查询路由（VECTOR/GRAPH/RELATIONAL），默认关闭
+  
+  query:
+    enable-rewrite: true  # 启用查询重写
+    enable-multi-query: true  # 启用多查询生成
+    multi-query-count: 3  # 生成的查询变体数量
+    include-original: true  # 包含原始查询
+    rewrite-strategies: DECOMPOSE,DIVERSIFY,STEP_BACK,ENRICH  # 重写策略组合
+  
+  rerank:
+    provider: dashscope  # dashscope or cohere
+    model: gte-rerank-v2
+    api-key: ${DASHSCOPE_API_KEY:sk-9ce1c5bd677c46c7b2ebeae50b3ec19b}
+    top-n: 5  # 重排序后保留的数量
+    rate-limit-qps: 2.0  # Rerank API 限流 QPS
+
+  cache:
+    retrieval-ttl-seconds: 300  # 检索结果缓存 TTL（秒）
+
+  query-expansion:
+    enabled: false  # 是否启用查询扩展
+    count: 3        # 扩展查询数量
+
+  context-aware:
+    enabled: false        # 是否启用上下文感知查询改写
+    history-turns: 3      # 读取的历史轮数
+
+  embedding:
+    provider: dashscope  # dashscope (云端API) 或 bge-local (本地BGE模型)
+    # BGE本地模型配置 (当provider=bge-local时使用)
+    executor:
+      core-size: 2        # 嵌入线程池核心线程数
+      max-size: 4         # 嵌入线程池最大线程数
+      queue-capacity: 100 # 嵌入线程池队列容量
+
+  hyde:
+    enabled: false  # 是否启用 HyDE 查询变换（Hypothetical Document Embeddings）
+    hypothetical-doc-max-tokens: 200  # HyDE 生成假设文档的最大 token 数
+
+  # Word 文档标题层级切分开关（默认关闭，不影响最小启动配置）
+  # 开启后 DocumentSplitterFactory.create("WORD") 才可用
+  word-splitter:
+    enable: false
+
+# BGE Reranker HTTP API Configuration
+# 当 enabled=true 时调用本地或私有部署的 BGE Reranker 服务（兼容 FlagEmbedding / Jina Reranker 接口规范）
+# 当 enabled=false 时降级为词频匹配（mock）
+bge:
+  reranker:
+    enabled: ${BGE_RERANKER_ENABLED:false}
+    url: ${BGE_RERANKER_URL:http://localhost:8000/rerank}
+    timeout-ms: ${BGE_RERANKER_TIMEOUT_MS:5000}
+
+# Tavily Search API Configuration
+# 当 api-key 非空时调用 Tavily Search API 进行 Web 搜索
+# 当 api-key 为空时降级为 mock 输出
+tavily:
+  api-key: ${TAVILY_API_KEY:}
+  search-depth: ${TAVILY_SEARCH_DEPTH:basic}   # basic 或 advanced
+  max-results: ${TAVILY_MAX_RESULTS:5}
+
+# Logging
+logging:
+  level:
+    root: INFO
+    cn.hollis.llm.mentor.ragdemo: DEBUG
+    dev.langchain4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
