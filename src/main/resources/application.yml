@@ -179,7 +179,7 @@ tavily:
 logging:
   level:
     root: INFO
-    cn.hollis.llm.mentor.ragdemo: DEBUG
+    top.kdla.framework.llm.mentor.rag: DEBUG
     dev.langchain4j: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

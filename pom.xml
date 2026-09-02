@@ -9,12 +9,12 @@
         <relativePath/>
     </parent>
 
-    <groupId>cn.hollis.llm</groupId>
+    <groupId>top.kdla.framework.llm</groupId>
     <artifactId>LLMentor</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <name>LLMentor</name>
     <packaging>pom</packaging>
-    <description>Hollis出品的LLM课程，像一个Mentor一样带你学习LLM内容</description>
+    <description>LLM课程，像一个Mentor一样带你学习LLM内容</description>
 
     <modules>
 
