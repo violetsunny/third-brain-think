@@ -1,30 +1,65 @@
 # Changelog
 
-所有对 `rag-demo` 的重要变更均记录在此文件中。  
+所有对 `third-brain-think`（前身 `rag-demo`）的重要变更均记录在此文件中。  
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [Semantic Versioning](https://semver.org/)。
 
 ---
 
 ## [Unreleased]
 
+### 工程重构（Breaking）
+
+- 单模块 `rag-demo` 拆分为 Maven 多模块工程，artifactId 由 `LLMentor` 更名为 `third-brain-think`，分层遵循 COLA 风格：
+  - `third-brain-think-client` — 对外 DTO
+  - `third-brain-think-domain` — 常量与领域模型（`SplitType`、`RagReference` 等）
+  - `third-brain-think-infrastructure` — 聚合 `third-brain-think-integration`（loader / splitter / rerank）与 `third-brain-think-persistence`（entity / mapper / 版本管理）
+  - `third-brain-think-application` — RAG 管道、Agent、检索、对话服务
+  - `third-brain-think-interfaces` — REST Controller 与全局异常处理
+  - `third-brain-think-starter` — 启动模块（`RagDemoApplication`、`application.yml`、建表脚本、静态页）
+- 统一包路径为 `top.kdla.framework.llm.mentor.rag`，替换原有 `cn.hollis` 前缀
+- 构建命令变更为根目录 `mvn clean package -DskipTests`，产物为 `third-brain-think-starter/target/third-brain-think-starter-1.0.0-SNAPSHOT.jar`
+
 ### 新增
 
-- `splitter/WordHeaderSplitter` — Word 文档（`.doc`/`.docx`）标题层级切分器（LangChain4j `DocumentSplitter` 适配），从 `rag/` 教学模块移植，改用 `filePath` metadata 读取原始文件（与 `ExcelSplitter` 一致）
-- `splitter/WordSplitterInitializer` — Spring `@Component`，将 `rag.word-splitter.enable` 配置注入静态工厂，默认 `false`
-- `constant/SplitType.WORD` — `DocumentSplitterFactory` 新增 `WORD` 路由分支，开关关闭时抛出 `IllegalArgumentException`
-- `retrieval/MultiSourceQueryRouter` — 第二级查询路由（VECTOR / GRAPH / RELATIONAL），仅当 `rag.retrieval.enable-multi-source-routing=true` 时注册 Bean，默认关闭；为 Graph RAG / Text-to-SQL 预留扩展入口
-- `application.yml` 新增两个默认关闭的可选开关：`rag.word-splitter.enable=false`、`rag.retrieval.enable-multi-source-routing=false`
+#### Agent 编排（原“计划中”项已落地）
+
+- `agent/RagReflectionAgent` — 自我反思 Agent，`POST /agent/reflection/chat`
+- `agent/RagPlanExecuteAgent` — Plan-and-Execute Agent，`POST /agent/plan-execute/chat`
+- `agent/hitl/RagHITLReactAgent` — HITL 状态机（挂起 / 审批 / 恢复），`POST /agent/hitl/chat` + `/agent/hitl/resume`
+- `agent/verification/` — 答案验证引擎：`ObjectiveVerificationEngine`、`CitationVerifier`、`NumericConsistencyVerifier`、`SubjectiveAssessor`、`VerificationAdvisor`
+- `agent/tool/WebSearchTool` — Tavily Web 搜索，未配置 API Key 时降级 mock
+- `agent/tool/CalculatorTool`、`CodeExecutorTool`、`GroovyCodeVerifier` — 计算与 Groovy 代码执行工具
+- `agent/prompts/` — Agent 提示词集中管理
+
+#### RAG 管道
+
+- `ai/ThinkTagParser` + `ai/StreamThinkTagFilter` — 流式过滤推理模型 think 块（DeepSeek / QwQ），处理跨 token 边界
+- `retrieval/QueryRouter` — 查询路由（NONE / KEYWORD / VECTOR / HYBRID），已接入 `EnhancedChatService` 主链路
+- `retrieval/MultiSourceQueryRouter` — 第二级查询路由（VECTOR / GRAPH / RELATIONAL），仅当 `rag.retrieval.enable-multi-source-routing=true` 时注册 Bean，默认关闭
+- `retrieval/RetrievalCacheService` + `RetrievalCacheInvalidator` — 检索结果缓存（TTL 由 `rag.cache.retrieval-ttl-seconds` 控制）
+- `retrieval/RerankRateLimiter` — Rerank API 限流（`rag.rerank.rate-limit-qps`）
+- `retrieval/HyDEQueryTransformer` — HyDE 查询变换，`rag.hyde.enabled` 默认关闭
+- `transformer/QueryComplexityClassifier` — 查询复杂度分类，驱动改写策略选择
+- `loader/DocumentCleaner` — 文档入库前清洗（去控制字符、压缩空白、截断超长文本）
+- `splitter/WordHeaderSplitter` + `WordSplitterInitializer` — Word 文档标题层级切分，`rag.word-splitter.enable` 默认关闭
+- `constant/SplitType.WORD` — `DocumentSplitterFactory` 新增 WORD 路由，开关关闭时抛 `IllegalArgumentException`
+- `rerank/BgeScoringModel` — BGE 重排 HTTP 调用，失败降级词频匹配
+- `event/DocumentSplitCompletedEvent` + `EmbeddingEventListener` — 切分完成后异步嵌入
+- `application.yml` 新增可选开关（均默认关闭）：`rag.word-splitter.enable`、`rag.retrieval.enable-multi-source-routing`、`rag.hyde.enabled`、`rag.query-expansion.enabled`、`rag.context-aware.enabled`
+
+#### 接口
+
+- `interfaces` 层新增 `GlobalExceptionHandler` / `BusinessException` / `ApiResponse` 统一异常与响应封装
+- `ChatController` 新增会话管理端点：`GET /chat/list`、`GET /chat/messages`、`PUT /chat/conversations/{id}/title`、`DELETE /chat/conversations/{id}`
+- `KnowledgeDocumentController` 新增：批量上传 / 批量删除 / 状态查询 / 分段查询 / 重试嵌入 / 删除文档
+- `RagDemoController` — `/api/rag/**` 简化演示端点（upload / query / simple-query / query-with-sources / health）
 
 ### 最小启动配置无变化
 
-MySQL + Redis + Milvus + `DASHSCOPE_API_KEY`，所有新增组件默认 `false`，不引入额外必须依赖。
-
----
+MySQL + Redis + Milvus + `DASHSCOPE_API_KEY`，所有新增组件默认关闭，不引入额外必须依赖。
 
 ### 计划中
-- `agent/ReflectionAgent` — 自我反思 Agent（ReflectionAdvisor 循环）
-- `agent/PlanExecuteAgent` — 规划型 Agent（Plan → Execute → Verify）
-- `agent/hitl/HITLReactAgent` — Human-in-the-Loop 状态机
+
 - `retrieval/SqlDatabaseRetriever` — Text-to-SQL 检索路径（stub）
 - `retrieval/Neo4jContentRetriever` — Graph RAG 检索路径（stub）
 

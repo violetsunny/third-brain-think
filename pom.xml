@@ -10,28 +10,73 @@
     </parent>
 
     <groupId>top.kdla.framework.llm</groupId>
-    <artifactId>LLMentor</artifactId>
+    <artifactId>third-brain-think</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <name>LLMentor</name>
+    <name>third-brain-think</name>
     <packaging>pom</packaging>
-    <description>LLM课程，像一个Mentor一样带你学习LLM内容</description>
+    <description>Advanced RAG with LangChain4j and Spring AI - Hybrid Search, Multi-format Support</description>
 
     <modules>
-
+        <module>third-brain-think-client</module>
+        <module>third-brain-think-domain</module>
+        <module>third-brain-think-infrastructure</module>
+        <module>third-brain-think-application</module>
+        <module>third-brain-think-interfaces</module>
+        <module>third-brain-think-starter</module>
     </modules>
 
     <properties>
         <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring.ai.version>1.1.4</spring.ai.version>
-        <langchain4j.version>1.13.0</langchain4j.version>
-        <fastjson.version>2.0.43</fastjson.version>
         <spring.ai.alibaba.version>1.1.2.0</spring.ai.alibaba.version>
-        <!-- 统一配置API Key ，记得改成你自己的-->
-        <dashscope.api.key>sk-1481f569ca5548cdaca784e41aa0988a</dashscope.api.key>
+        <langchain4j.version>1.13.0</langchain4j.version>
+        <langchain4j.extension.version>1.13.0-beta23</langchain4j.extension.version>
+        <fastjson.version>2.0.43</fastjson.version>
+        <mybatis-plus.version>3.5.9</mybatis-plus.version>
+        <milvus-sdk.version>2.5.6</milvus-sdk.version>
+        <elasticsearch-java.version>8.11.0</elasticsearch-java.version>
+        <elasticsearch-rest-high-level.version>7.17.21</elasticsearch-rest-high-level.version>
+        <pdfbox.version>3.0.1</pdfbox.version>
+        <poi.version>5.2.5</poi.version>
+        <easyexcel.version>3.3.4</easyexcel.version>
+        <groovy-jsr223.version>3.0.21</groovy-jsr223.version>
+        <guava.version>33.0.0-jre</guava.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>top.kdla.framework.llm</groupId>
+                <artifactId>third-brain-think-client</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.kdla.framework.llm</groupId>
+                <artifactId>third-brain-think-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.kdla.framework.llm</groupId>
+                <artifactId>third-brain-think-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.kdla.framework.llm</groupId>
+                <artifactId>third-brain-think-interfaces</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.kdla.framework.llm</groupId>
+                <artifactId>third-brain-think-integration</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.kdla.framework.llm</groupId>
+                <artifactId>third-brain-think-persistence</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
             <dependency>
                 <groupId>com.alibaba.cloud.ai</groupId>
                 <artifactId>spring-ai-alibaba-bom</artifactId>
@@ -46,7 +91,6 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            <!-- LangChain4j BOM -->
             <dependency>
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-bom</artifactId>
@@ -54,8 +98,100 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
+
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-document-parser-apache-tika</artifactId>
+                <version>${langchain4j.extension.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-milvus</artifactId>
+                <version>${langchain4j.extension.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-elasticsearch</artifactId>
+                <version>${langchain4j.extension.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-spring-boot-starter</artifactId>
+                <version>${langchain4j.extension.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-embeddings-bge-small-zh-v15</artifactId>
+                <version>${langchain4j.extension.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.milvus</groupId>
+                <artifactId>milvus-sdk-java</artifactId>
+                <version>${milvus-sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>co.elastic.clients</groupId>
+                <artifactId>elasticsearch-java</artifactId>
+                <version>${elasticsearch-java.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsearch.client</groupId>
+                <artifactId>elasticsearch-rest-high-level-client</artifactId>
+                <version>${elasticsearch-rest-high-level.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.pdfbox</groupId>
+                <artifactId>pdfbox</artifactId>
+                <version>${pdfbox.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-scratchpad</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>easyexcel</artifactId>
+                <version>${easyexcel.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.groovy</groupId>
+                <artifactId>groovy-jsr223</artifactId>
+                <version>${groovy-jsr223.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba.fastjson2</groupId>
+                <artifactId>fastjson2</artifactId>
+                <version>${fastjson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
 
     <build>
         <resources>
@@ -69,7 +205,6 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-resources-plugin</artifactId>
                 <configuration>
-                    <!-- 二进制文件不参与过滤，避免被当成 UTF-8 文本读取导致 MalformedInputException 或文件损坏 -->
                     <nonFilteredFileExtensions>
                         <nonFilteredFileExtension>xlsx</nonFilteredFileExtension>
                         <nonFilteredFileExtension>xls</nonFilteredFileExtension>
@@ -90,37 +225,15 @@
                 </configuration>
             </plugin>
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <excludes>
-                        <exclude>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                        </exclude>
-                    </excludes>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
                 <configuration>
+                    <parameters>true</parameters>
                     <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.mapstruct</groupId>
-                            <artifactId>mapstruct-processor</artifactId>
-                            <version>1.5.5.Final</version>
-                        </path>
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
                             <version>${lombok.version}</version>
-                        </path>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok-mapstruct-binding</artifactId>
-                            <version>0.2.0</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

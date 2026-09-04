@@ -1,6 +1,10 @@
-# RAG Demo — 生产级 RAG + Agent 学习参考实现
+# third-brain-think — 生产级 RAG + Agent 学习参考实现
 
-> 本模块是 **LLMentor** 课程的核心演示工程，目标是将 `rag`、`know-engine`、`agent/general-agent` 等兄弟模块的精华能力汇聚到一个可运行、可学习的参考实现中。
+> 基于 LangChain4j + Spring AI 的多模块 RAG 工程（前身 `rag-demo`），将文档处理、混合检索、Agent 编排与答案验证的完整能力汇聚到一个可运行、可学习的参考实现中。适合想系统学习 RAG 与 Agent 工程化落地的 Java 开发者。
+>
+> 最短上手路径：备齐 MySQL + Redis + Milvus + DashScope API Key，`mvn clean package -DskipTests` 后运行 `third-brain-think-starter` 即可，详见[快速开始](#快速开始)。
+
+**文档导航**：[项目结构](./docs/project-map.md) · [架构说明](./docs/architecture.md) · [变更历史](./CHANGELOG.md) · [Agent 工作指南](./AGENTS.md)
 
 ---
 
@@ -10,6 +14,7 @@
 - [技术栈](#技术栈)
 - [能力全景](#能力全景)
 - [架构设计](#架构设计)
+- [工程结构](#工程结构)
 - [快速开始](#快速开始)
 - [API 参考](#api-参考)
 - [核心组件详解](#核心组件详解)
@@ -25,12 +30,12 @@
 ## 项目定位
 
 ```
-rag-demo 不是生产服务，而是一个"精华提炼"的学习工程：
+third-brain-think 不是生产服务，而是一个"精华提炼"的学习工程：
   know-engine  ──── 持久化 Memory / 版本管理 / 进度推送
   rag          ──── 混合检索 / RRF / 重排 / 多格式加载
   general-agent ─── ReAct Agent / Spring AI 工具调用
         ↓
-     rag-demo  ──── 统一在一个模块里，可运行、可调试、可学习
+  third-brain-think ── 统一在一个工程里，可运行、可调试、可学习
 ```
 
 ---
@@ -41,7 +46,7 @@ rag-demo 不是生产服务，而是一个"精华提炼"的学习工程：
 |---|---|---|
 | LLM 框架 | LangChain4j | 1.13.0 |
 | LLM 框架 | Spring AI | 1.1.4 |
-| Web 框架 | Spring Boot | 3.x |
+| Web 框架 | Spring Boot | 3.5.6 |
 | ORM | MyBatis-Plus | 3.5.9 |
 | 向量存储 | Milvus（必须） | 2.x |
 | 全文检索 / 向量存储（可选） | Elasticsearch 8.x | BM25 关键词检索 + embedding store；`elasticsearch.enable=false` 时不启动 |
@@ -98,11 +103,13 @@ rag-demo 不是生产服务，而是一个"精华提炼"的学习工程：
 | ReAct Agent（流式+同步） | ✅ | `RagReactAgent` — Spring AI，最大 8 轮 |
 | RAG 知识库检索工具 | ✅ | `RagToolService.searchKnowledgeBase()` |
 | 天气查询工具（示例） | ✅ | `WeatherTool.getWeather()` |
-| 自我反思 Agent | 🔜 | `ReflectionAgent` + `ReflectionAdvisor` |
-| Plan-and-Execute Agent | 🔜 | `PlanExecuteAgent` |
-| Human-in-the-Loop (HITL) | 🔜 | `HITLReactAgent` + 挂起/恢复状态机 |
-| Web 搜索工具 | 🔜 | `WebSearchTool` |
-| Think-tag 解析 | 🔜 | `ThinkTagParser` — 过滤 `<think>` 推理块 |
+| 自我反思 Agent | ✅ | `RagReflectionAgent` — `POST /agent/reflection/chat` |
+| Plan-and-Execute Agent | ✅ | `RagPlanExecuteAgent` — `POST /agent/plan-execute/chat` |
+| Human-in-the-Loop (HITL) | ✅ | `RagHITLReactAgent` — 挂起/恢复状态机，`/agent/hitl/chat` + `/agent/hitl/resume` |
+| 答案验证 | ✅ | `ObjectiveVerificationEngine` + `SubjectiveAssessor` + `VerificationAdvisor` |
+| Web 搜索工具 | ✅ | `WebSearchTool` — Tavily API，未配置时降级 mock |
+| 计算 / 代码执行工具 | ✅ | `CalculatorTool`、`CodeExecutorTool`（Groovy 沙箱校验 `GroovyCodeVerifier`） |
+| Think-tag 解析 | ✅ | `ThinkTagParser` + `StreamThinkTagFilter` — 过滤 `<think>` 推理块 |
 
 ---
 
@@ -122,6 +129,26 @@ rag-demo 不是生产服务，而是一个"精华提炼"的学习工程：
 │  │_version  │                                            │
 │  └──────────┘                                            │
 └──────────────────────────────────────────────────────────┘
+```
+
+完整的模块关系、数据流与 Mermaid 架构图见 [docs/architecture.md](./docs/architecture.md)。
+
+---
+
+## 工程结构
+
+Maven 多模块工程，分层遵循 COLA 风格（详见 [docs/project-map.md](./docs/project-map.md)）：
+
+```
+third-brain-think/
+├── third-brain-think-client          # 对外 DTO
+├── third-brain-think-domain          # 常量与领域模型（SplitType、RagReference）
+├── third-brain-think-infrastructure  # 基础设施层
+│   ├── third-brain-think-integration #   文档 loader/splitter、rerank
+│   └── third-brain-think-persistence #   MyBatis-Plus entity/mapper、版本管理
+├── third-brain-think-application     # RAG 管道、Agent、检索、对话服务
+├── third-brain-think-interfaces      # REST Controller、全局异常处理
+└── third-brain-think-starter         # 启动模块（RagDemoApplication + 配置）
 ```
 
 ---
@@ -146,11 +173,11 @@ rag-demo 不是生产服务，而是一个"精华提炼"的学习工程：
 ### 1. 启动基础服务
 
 ```bash
-# MySQL
+# MySQL（库名与 application.yml 中 spring.datasource.url 保持一致，当前为 ardm）
 docker run -d --name mysql8 \
   -p 3306:3306 \
   -e MYSQL_ROOT_PASSWORD=root \
-  -e MYSQL_DATABASE=rag_demo \
+  -e MYSQL_DATABASE=ardm \
   mysql:8.0
 
 # Redis
@@ -174,12 +201,12 @@ docker run -d --name milvus-standalone \
 
 ```bash
 # 执行建表脚本
-mysql -u root -proot rag_demo < src/main/resources/db/migration.sql
+mysql -u root -proot ardm < third-brain-think-starter/src/main/resources/db/migration.sql
 ```
 
 ### 3. 配置 API Key
 
-编辑 `src/main/resources/application.yml`：
+编辑 `third-brain-think-starter/src/main/resources/application.yml`（推荐改用环境变量 `DASHSCOPE_API_KEY`，避免明文入库）：
 
 ```yaml
 langchain4j:
@@ -210,11 +237,11 @@ rag:
 ### 4. 编译运行
 
 ```bash
-# 在项目根目录
-mvn clean package -pl rag-demo -am -DskipTests
+# 在项目根目录（多模块全量构建）
+mvn clean package -DskipTests
 
 # 运行
-java -Xms1g -Xmx2g -jar rag-demo/target/rag-demo-1.0.0-SNAPSHOT.jar
+java -Xms1g -Xmx2g -jar third-brain-think-starter/target/third-brain-think-starter-1.0.0-SNAPSHOT.jar
 ```
 
 访问：**http://localhost:8088**
@@ -245,6 +272,14 @@ curl -X POST http://localhost:8088/api/document/versions/{versionId}/activate
 
 # 停用指定版本
 curl -X POST http://localhost:8088/api/document/versions/{versionId}/deactivate
+
+# 批量上传 / 批量删除 / 状态查询 / 分段查询 / 重试嵌入 / 删除文档
+curl -X POST http://localhost:8088/api/document/knowledge/batch-upload
+curl -X DELETE http://localhost:8088/api/document/knowledge/batch
+curl http://localhost:8088/api/document/knowledge/status
+curl http://localhost:8088/api/document/knowledge/{docId}/segments
+curl -X POST http://localhost:8088/api/document/knowledge/{docId}/retry-embed
+curl -X DELETE http://localhost:8088/api/document/{docId}
 ```
 
 ### 流式 RAG 对话
@@ -283,6 +318,36 @@ curl -X POST http://localhost:8088/agent/chat \
 curl -X POST http://localhost:8088/agent/chat/stream \
   -H "Content-Type: application/json" \
   -d '{"conversationId":"agent-001","question":"帮我查一下Tesla续航并结合北京气温给个出行建议"}'
+
+# 自我反思 Agent
+curl -X POST http://localhost:8088/agent/reflection/chat \
+  -H "Content-Type: application/json" \
+  -d '{"conversationId":"agent-002","question":"Tesla Model 3 的续航里程是多少？"}'
+
+# Plan-and-Execute Agent
+curl -X POST http://localhost:8088/agent/plan-execute/chat \
+  -H "Content-Type: application/json" \
+  -d '{"conversationId":"agent-003","question":"先查 Tesla 续航，再结合天气给出出行建议"}'
+
+# HITL Agent（interrupted=true 时取 pendingToolCalls，人工审批后恢复）
+curl -X POST http://localhost:8088/agent/hitl/chat \
+  -H "Content-Type: application/json" \
+  -d '{"conversationId":"agent-004","question":"查询知识库中的 Tesla 资料"}'
+
+# HITL 恢复执行（回传挂起时的 pendingToolCalls / checkpointMessages / context）
+curl -X POST http://localhost:8088/agent/hitl/resume \
+  -H "Content-Type: application/json" \
+  -d '{"pendingToolCalls":[{"id":"call_xxx","name":"getWeather","arguments":"{}","result":"APPROVED"}],"checkpointMessages":[],"context":{}}'
+```
+
+### 对话管理
+
+```bash
+curl http://localhost:8088/chat/list                                  # 会话列表
+curl "http://localhost:8088/chat/messages?conversationId=conv-001"    # 消息记录
+curl -X PUT http://localhost:8088/chat/conversations/conv-001/title \
+  -H "Content-Type: application/json" -d '"新标题"'                    # 重命名会话
+curl -X DELETE http://localhost:8088/chat/conversations/conv-001      # 删除会话
 ```
 
 ---
@@ -368,14 +433,25 @@ ContentRetriever wrapped = ProgressAwareContentRetriever.builder()
 ### 包结构
 
 ```
-agent/
+agent/                                        # 位于 third-brain-think-application 模块
 ├── AgentChatParam.java          # 请求 DTO：conversationId + question
 ├── AgentChatResult.java         # 响应 DTO：conversationId + answer
-├── AgentController.java         # POST /agent/chat, /agent/chat/stream
-├── RagReactAgent.java           # ReAct Agent 主体（Spring @Component）
-└── tool/
-    ├── RagToolService.java      # @Tool: searchKnowledgeBase(query)
-    └── WeatherTool.java         # @Tool: getWeather(city) [示例]
+├── AgentController.java         # /agent/chat、/chat/stream、/reflection/chat、/plan-execute/chat、/hitl/chat、/hitl/resume
+├── RagReactAgent.java           # ReAct Agent（流式 + 同步）
+├── RagReflectionAgent.java      # 自我反思 Agent
+├── RagPlanExecuteAgent.java     # Plan-and-Execute Agent
+├── advisor/
+│   └── VerificationAdvisor.java # 答案验证切面
+├── hitl/                        # HITL 状态机：RagHITLReactAgent / HITLState / PendingToolCall / AgentResult 等
+├── prompts/                     # AgentDefaultPrompts / PlanExecutePromptsFactory
+├── tool/
+│   ├── RagToolService.java      # @Tool: searchKnowledgeBase(query)
+│   ├── WeatherTool.java         # @Tool: getWeather(city) [示例]
+│   ├── WebSearchTool.java       # @Tool: Tavily Web 搜索（未配置降级 mock）
+│   ├── CalculatorTool.java      # @Tool: 数学计算
+│   ├── CodeExecutorTool.java    # @Tool: Groovy 代码执行
+│   └── GroovyCodeVerifier.java  # 代码安全校验
+└── verification/                # 答案验证引擎：客观验证 + 主观评估 + 引用/数值一致性核查
 ```
 
 ### 添加新工具
@@ -527,7 +603,7 @@ ContentRetriever myContentRetriever() {
         .build();
 }
 
-// 3. 加入 DefaultQueryRouter 路由列表
+// 3. 加入 QueryRouter / MultiSourceQueryRouter 路由列表
 ```
 
 ### 新增 Agent 工具
@@ -547,28 +623,31 @@ public class StockTool {
 
 ## Roadmap
 
-### Agent 深化（开发中）
+### 已完成
 
-- [ ] `agent/ReflectionAgent` — 自我反思循环（ReflectionAdvisor）
-- [ ] `agent/PlanExecuteAgent` — 规划型 Agent（先生成 Plan，再逐步 Execute）
-- [ ] `agent/hitl/HITLReactAgent` — Human-in-the-Loop，支持挂起/人工审批/恢复
-- [ ] `agent/tool/WebSearchTool` — Web 搜索工具集成
-- [ ] `ai/ThinkTagParser` — 过滤推理模型 `<think>...</think>` 块（DeepSeek / QwQ）
+- [x] `agent/RagReflectionAgent` — 自我反思循环
+- [x] `agent/RagPlanExecuteAgent` — 规划型 Agent（Plan → Execute → Verify）
+- [x] `agent/hitl/RagHITLReactAgent` — Human-in-the-Loop，支持挂起/人工审批/恢复
+- [x] `agent/verification/` — 答案验证引擎（客观验证 + 主观评估 + 严重级别）
+- [x] `agent/tool/WebSearchTool` — Tavily Web 搜索工具集成
+- [x] `ai/ThinkTagParser` + `ai/StreamThinkTagFilter` — 过滤推理模型 `<think>...</think>` 块
+- [x] `retrieval/QueryRouter` — 查询路由（NONE / KEYWORD / VECTOR / HYBRID）
+- [x] `loader/DocumentCleaner` — 文档入库前清洗
+- [x] `rerank/BgeScoringModel` — BGE 重排（HTTP API，失败降级词频匹配）
+- [x] `retrieval/RetrievalCacheService` + `RerankRateLimiter` — 检索缓存与重排限流
 
-### RAG 管道完善（开发中）
+### 计划中
 
-- [ ] `retrieval/QueryRouter` — 多路检索路由（根据意图分发到向量/ES/SQL/Graph）
-- [ ] `loader/DocumentCleaner` — 文档入库前清洗（去噪、去页眉页脚、HTML 标签清理）
-- [ ] `rerank/BgeScoringModel` — 本地 BGE 重排模型（无需 API，离线可用）
 - [ ] `retrieval/SqlDatabaseRetriever` — Text-to-SQL 检索路径（自然语言→SQL→结果）
 - [ ] `retrieval/Neo4jContentRetriever` — Graph RAG（知识图谱增强检索）
+- [ ] `retrieval/MultiSourceQueryRouter` 落地 GRAPH / RELATIONAL 分支（当前仅 VECTOR 可用，开关默认关闭）
 
 ---
 
 ## 注意事项
 
-1. **API Key 安全** — 不要将 `application.yml` 中的 Key 提交到版本控制，用环境变量替代
-2. **JVM 内存** — 大文档处理建议：`java -Xms2g -Xmx4g -jar rag-demo.jar`
+1. **API Key 安全** — 不要将 `application.yml` 中的 Key 提交到版本控制，用环境变量替代（当前 yml 中 DashScope Key 存在硬编码默认值，部署前务必移除并用 `DASHSCOPE_API_KEY` 覆盖）
+2. **JVM 内存** — 大文档处理建议：`java -Xms2g -Xmx4g -jar third-brain-think-starter-1.0.0-SNAPSHOT.jar`
 3. **Elasticsearch 可选** — 默认 `elasticsearch.enable=false`，关键词检索自动降级为 MySQL LIKE（精度有限）；生产环境建议开启 ES 以获得完整 BM25 检索能力。开启时若连接失败，应用会启动失败并给出明确提示，不会静默降级
 4. **版本管理** — 文档上传后自动创建 v1 版本；重复上传相同内容文件（SHA-256 相同）不会创建新版本
 5. **evictCache** — `EnhancedChatService` 每轮对话前主动清除 Redis 缓存，防止上轮 `[REFERENCE]:` 内容污染本轮意图识别
@@ -582,8 +661,11 @@ public class StockTool {
 - [Elasticsearch 文档](https://www.elastic.co/guide/index.html)
 - [EasyExcel 文档](https://easyexcel.opensource.alibaba.com/)
 - [CHANGELOG](./CHANGELOG.md) — 完整变更历史
+- [docs/project-map.md](./docs/project-map.md) — 模块与目录结构参考
+- [docs/architecture.md](./docs/architecture.md) — 架构说明与 FAQ
 
 ---
 
+**License**: Apache-2.0  
 **作者**: Hollis  
 **课程**: LLMentor — 带你系统学习大语言模型开发
