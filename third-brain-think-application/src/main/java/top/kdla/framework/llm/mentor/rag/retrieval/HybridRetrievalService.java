@@ -40,6 +40,7 @@ public class HybridRetrievalService {
     private final RestTemplate restTemplate = new RestTemplate();
     
     @Autowired(required = false)
+    @Qualifier("elasticsearchClient")
     private ElasticsearchClient elasticsearchClient;
 
     /** 关键词检索器：ES 激活时为 BM25，否则为 MySQL LIKE 降级实现。可为 null */

@@ -24,3 +24,51 @@ ALTER TABLE `knowledge_document`
 -- Task 1.4: Add rag_references column to chat_message
 ALTER TABLE `chat_message`
     ADD COLUMN IF NOT EXISTS `rag_references` TEXT NULL COMMENT 'RAG检索来源引用 JSON' AFTER `content`;
+
+-- AgentX 评测模块（agentx）三张表，源自 dodo-agentx/sql/init.sql
+CREATE TABLE IF NOT EXISTS `agentx_conversation`  (
+  `id` bigint NOT NULL COMMENT '主键ID',
+  `conversation_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '会话窗口ID',
+  `session_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '本次调用ID',
+  `user_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '用户ID',
+  `question` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '用户提问',
+  `status` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT 'running' COMMENT '执行状态: running/completed/interrupted/error',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `completed_at` timestamp NULL DEFAULT NULL COMMENT '完成时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE INDEX `uk_conv_session`(`session_id` ASC) USING BTREE,
+  INDEX `idx_conv_id`(`conversation_id` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'AgentX会话窗口表' ROW_FORMAT = Dynamic;
+
+CREATE TABLE IF NOT EXISTS `agentx_session`  (
+  `id` bigint NOT NULL COMMENT '主键ID',
+  `conversation_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '会话窗口ID',
+  `session_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '本次调用ID',
+  `state_key` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '状态键: original_messages / working_messages / offload_context',
+  `item_index` int NOT NULL DEFAULT 0 COMMENT '消息在状态键内的序号',
+  `state_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '消息JSON（MessageJsonSerializer 序列化）',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_session_state`(`session_id` ASC, `state_key` ASC) USING BTREE,
+  INDEX `idx_conv_state`(`conversation_id` ASC, `state_key` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = 'AgentX会话消息链表' ROW_FORMAT = Dynamic;
+
+CREATE TABLE IF NOT EXISTS `agentx_trace`  (
+  `id` bigint NOT NULL COMMENT '主键ID',
+  `session_id` bigint NOT NULL COMMENT '会话记录ID（agentx_session.id）',
+  `conversation_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL COMMENT '会话ID',
+  `round` int NOT NULL COMMENT '本轮ReAct循环轮次',
+  `input_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '输入内容（prompt/消息序列JSON）',
+  `output_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '输出内容（模型回答/工具结果）',
+  `think` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '模型思考内容',
+  `prompt_tokens` int NULL DEFAULT 0 COMMENT '提示token数',
+  `completion_tokens` int NULL DEFAULT 0 COMMENT '补全token数',
+  `duration_ms` bigint NULL DEFAULT 0 COMMENT '本轮耗时（毫秒）',
+  `success` int NULL DEFAULT 1 COMMENT '是否成功：1成功 0失败',
+  `error_message` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL COMMENT '错误信息',
+  `created_at` timestamp NULL DEFAULT NULL COMMENT '创建时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  INDEX `idx_agentx_trace_session`(`session_id` ASC) USING BTREE,
+  INDEX `idx_agentx_trace_conv`(`conversation_id` ASC) USING BTREE
+) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE utf8mb4_general_ci COMMENT = 'AgentX追踪审计表' ROW_FORMAT = DYNAMIC;

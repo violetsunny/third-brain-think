@@ -31,8 +31,10 @@
 
 ```
 third-brain-think 不是生产服务，而是一个"精华提炼"的学习工程：
-  know-engine  ──── 持久化 Memory / 版本管理 / 进度推送
-  rag          ──── 混合检索 / RRF / 重排 / 多格式加载
+  know-engine  ──── 持久化 Memory / 版本管理 / 进度推送（独立模块，独立运行）
+  rag          ──── 混合检索 / RRF / 重排 / 多格式加载（主工程）
+  ragcore      ──── RAG 组件教学演示（reader/splitter/es/neo4j/minio/router）
+  agentx       ──── BIRD Text-to-SQL 评测 / Judge / Diagnose（+ agentx-core 框架库）
   general-agent ─── ReAct Agent / Spring AI 工具调用
         ↓
   third-brain-think ── 统一在一个工程里，可运行、可调试、可学习
@@ -44,12 +46,17 @@ third-brain-think 不是生产服务，而是一个"精华提炼"的学习工程
 
 | 层次 | 技术 | 版本 |
 |---|---|---|
-| LLM 框架 | LangChain4j | 1.13.0 |
+| LLM 框架 | LangChain4j | 1.13.0（know-engine 隔离使用 1.11.0） |
 | LLM 框架 | Spring AI | 1.1.4 |
+| LLM 框架 | Spring AI Alibaba（DashScope） | 1.1.2.2（ragcore 教学端点） |
 | Web 框架 | Spring Boot | 3.5.6 |
 | ORM | MyBatis-Plus | 3.5.9 |
 | 向量存储 | Milvus（必须） | 2.x |
 | 全文检索 / 向量存储（可选） | Elasticsearch 8.x | BM25 关键词检索 + embedding store；`elasticsearch.enable=false` 时不启动 |
+| 图数据库（可选） | Neo4j | ragcore 图谱教学演示，驱动懒连接 |
+| 对象存储（可选） | MinIO | 8.5.1，ragcore 文件教学演示 |
+| 评测模型（可选） | DeepSeek | agentx BIRD/Judge/Diagnose 评测 |
+| 评测数据库（内嵌） | SQLite（sqlite-jdbc） | 3.46.1.3，BIRD 评测数据 |
 | 关系数据库 | MySQL 8 | — |
 | 缓存 | Redis | — |
 | Excel 解析 | EasyExcel | 3.3.4 |
@@ -111,6 +118,29 @@ third-brain-think 不是生产服务，而是一个"精华提炼"的学习工程
 | 计算 / 代码执行工具 | ✅ | `CalculatorTool`、`CodeExecutorTool`（Groovy 沙箱校验 `GroovyCodeVerifier`） |
 | Think-tag 解析 | ✅ | `ThinkTagParser` + `StreamThinkTagFilter` — 过滤 `<think>` 推理块 |
 
+### ragcore 教学组件（独立演示端点，不接主链路）
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| 多格式 Reader 策略 | ✅ | pdf/tika/jsoup/markdown/json/text + `PdfMultimodalProcessor` |
+| 教学切分器 | ✅ | Markdown 标题 / Word 标题 / 重叠段落 / 多模态 |
+| ES 原生客户端检索 | ✅ | `ElasticSearchService`（独立于主工程 ES 链路） |
+| Neo4j 图谱检索 | ✅ | `MovieGraphRepository` + `GraphService`（电影-导演演示数据） |
+| MinIO 文件存储 | ✅ | `MinioService`（懒初始化） |
+| 查询路由 / 改写 | ✅ | `QueryRouteService`（VECTOR/GRAPH/RELATIONAL 模拟）、`QueryRewriteService` |
+
+### agentx 评测体系
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| BIRD Text-to-SQL 评测 | ✅ | `BirdEvalService` — ReactAgent + SQLite 工具（list/describe/execute/verify） |
+| Agent 会话质量 Judge | ✅ | `AgentEvalJudgeService` — 基于 trace 的 LLM 评审 |
+| 执行轨迹 Diagnose | ✅ | `AgentDiagnoseService` — 失败轨迹诊断 |
+| Trace 查询 | ✅ | `TraceQueryService` + `agentx_conversation/session/trace` 三表 |
+
+### know-engine（独立模块）
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| 知识引擎 | ✅ | 文档管理 / 分段 / 嵌入 / RAG modules，`KnowEngineApplication` 独立运行（auth/dingtalk 已裁剪） |
+
 ---
 
 ## 架构设计
@@ -141,14 +171,16 @@ Maven 多模块工程，分层遵循 COLA 风格（详见 [docs/project-map.md](
 
 ```
 third-brain-think/
-├── third-brain-think-client          # 对外 DTO
-├── third-brain-think-domain          # 常量与领域模型（SplitType、RagReference）
+├── third-brain-think-client          # 对外 DTO + ragcore 图谱模型
+├── third-brain-think-domain          # 常量与领域模型（SplitType、RagReference）+ agentx 端口
 ├── third-brain-think-infrastructure  # 基础设施层
-│   ├── third-brain-think-integration #   文档 loader/splitter、rerank
-│   └── third-brain-think-persistence #   MyBatis-Plus entity/mapper、版本管理
-├── third-brain-think-application     # RAG 管道、Agent、检索、对话服务
-├── third-brain-think-interfaces      # REST Controller、全局异常处理
-└── third-brain-think-starter         # 启动模块（RagDemoApplication + 配置）
+│   ├── third-brain-think-integration #   文档 loader/splitter、rerank、ragcore 集成、agentx sqlite
+│   └── third-brain-think-persistence #   MyBatis-Plus entity/mapper、版本管理、agentx 三表
+├── third-brain-think-application     # RAG 管道、Agent、检索、对话服务、ragcore 服务、agentx 评测
+├── third-brain-think-interfaces      # REST Controller、全局异常处理、ragcore/agentx 端点
+├── third-brain-think-starter         # 启动模块（RagDemoApplication + 配置）
+├── third-brain-think-agentx-core     # 智能体框架核心库（com.agentx.ai，纯库）
+└── third-brain-think-know-engine     # 知识引擎独立模块（独立运行，starter 不依赖）
 ```
 
 ---
@@ -166,9 +198,13 @@ third-brain-think/
 | Milvus 2.x | ✅ 必须 | 向量存储（不可替换为 InMemory） |
 | DashScope API Key | ✅ 必须 | Chat / Embedding / Rerank 模型 |
 | Elasticsearch 8.x | 可选 | BM25 关键词检索；关闭时自动降级为 MySQL LIKE 检索，精度有限，生产建议开启 |
+| Neo4j 5.x | 可选 | ragcore 图谱教学端点；驱动懒连接，无服务不影响启动 |
+| MinIO | 可选 | ragcore 文件存储教学端点；懒初始化，无服务不影响启动 |
+| DeepSeek API Key | 可选 | agentx BIRD/Judge/Diagnose 评测端点；为空不影响启动，调用评测时报错 |
 
 > **最小启动**：MySQL + Redis + Milvus + DashScope API Key。
 > 开启 ES：将 `application.yml` 中 `elasticsearch.enable` 改为 `true`，并确保 ES 服务可用。
+> Neo4j / MinIO / DeepSeek / SQLite（BIRD 评测）均为可选，仅在调用对应教学/评测端点时需要。
 
 ### 1. 启动基础服务
 
@@ -232,6 +268,15 @@ spring:
 rag:
   rerank:
     api-key: sk-xxxx            # Rerank API Key
+```
+
+可选（agentx 评测，未配置时应用可正常启动）：
+
+```yaml
+spring:
+  ai:
+    deepseek:
+      api-key: sk-xxxx          # 或环境变量 DEEPSEEK_API_KEY
 ```
 
 ### 4. 编译运行
@@ -348,6 +393,29 @@ curl "http://localhost:8088/chat/messages?conversationId=conv-001"    # 消息�
 curl -X PUT http://localhost:8088/chat/conversations/conv-001/title \
   -H "Content-Type: application/json" -d '"新标题"'                    # 重命名会话
 curl -X DELETE http://localhost:8088/chat/conversations/conv-001      # 删除会话
+```
+
+### ragcore 教学端点（可选服务，未启动对应服务时调用报错）
+
+```bash
+# 前缀一览：/rag（模块化演示）、/rag/embedding、/rag/es、/rag/files、/rag/generate、
+#           /rag/graph（需 Neo4j）、/rag/hybrid、/rag/image、/rag/metadata、
+#           /rag/modular、/rag/retriever、/rag/rewrite、/rag/router
+curl "http://localhost:8088/rag/graph/retrieve?movieName=影"          # Neo4j 图谱检索演示
+```
+
+### agentx 评测端点（需 DEEPSEEK_API_KEY）
+
+```bash
+curl -X POST http://localhost:8088/bird/eval/run   -H "Content-Type: application/json" -d '{...}'   # BIRD Text-to-SQL 评测
+curl -X POST http://localhost:8088/agent/eval/judge -H "Content-Type: application/json" -d '{...}'  # 会话质量 Judge
+# 另有 Diagnose / trace 查询端点，详见 BirdEvalController / AgentEvalController
+```
+
+### know-engine（独立模块，独立启动）
+
+```bash
+mvn spring-boot:run -pl third-brain-think-know-engine   # 独立运行，端口与配置见其自带 application.yml
 ```
 
 ---

@@ -27,6 +27,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,7 @@ public class DocumentProcessServiceImpl implements DocumentProcessService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Autowired(required = false)
+    @Qualifier("elasticsearchClient")
     private ElasticsearchClient elasticsearchClient;
 
     @Value("${rag.document.upload-dir:./uploads}")

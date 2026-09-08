@@ -20,6 +20,13 @@ spring:
   
   # Redis Configuration for Chat Memory
   data:
+    # Neo4j Configuration (可选组件 - ragcore 图谱教学演示)
+    # 驱动为懒连接，无 Neo4j 服务时应用可正常启动，仅调用 /rag/graph 相关端点时报错
+    neo4j:
+      uri: ${NEO4J_URI:bolt://localhost:7687}
+      authentication:
+        username: ${NEO4J_USERNAME:neo4j}
+        password: ${NEO4J_PASSWORD:neo4j}
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
@@ -32,6 +39,16 @@ spring:
           max-idle: 8
           min-idle: 0
           max-wait: -1ms
+
+  # DeepSeek Configuration (可选组件 - agentx BIRD/Judge/Diagnose 评测)
+  # api-key 为空时应用可正常启动，仅调用评测端点时报错
+  ai:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
 
 # LangChain4j Configuration
 langchain4j:
@@ -180,6 +197,7 @@ logging:
   level:
     root: INFO
     top.kdla.framework.llm.mentor.rag: DEBUG
+    top.kdla.framework.llm.mentor.ragcore: DEBUG
     dev.langchain4j: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

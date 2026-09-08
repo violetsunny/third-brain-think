@@ -12,6 +12,7 @@ import dev.langchain4j.store.embedding.EmbeddingSearchResult;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -48,6 +49,7 @@ public class BrotherAwareRetriever {
     private EmbeddingStore<TextSegment> embeddingStore;
 
     @Autowired(required = false)
+    @Qualifier("elasticsearchClient")
     private ElasticsearchClient elasticsearchClient;
 
     @Autowired(required = false)

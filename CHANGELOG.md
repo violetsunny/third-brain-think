@@ -7,6 +7,29 @@
 
 ## [Unreleased]
 
+### 模块扩展（LLMentor 三部分代码并入）
+
+- **know-engine 独立模块**（`third-brain-think-know-engine`，169→150 文件）：包名迁移至 `top.kdla.framework.llm.mentor.know.engine`；裁剪 `auth/`、`dingtalk/` 包（3 个 controller 的 AuthService 以 `"anonymous"` 占位）；同步删除 yml 中 dingtalk（含泄露风险的 appSecret）与 sa-token 配置段；保留 `KnowEngineApplication` 独立运行，starter 不依赖此模块（避免 `/chat` 端点冲突）；langchain4j 保持 1.11.0/beta19 与主工程 1.13.0 隔离
+  - 修复 `KnowEngineQueryTransformer` 产品 bug：`query.metadata()` 为 null 时 NPE、LLM 空响应时回退原问题
+  - 测试治理：修正 5 处过时断言（对齐"返回单个查询"的当前行为）、删除 `IntegrationTest` 内部类；删除 `ChatModelBenchmarkTest`、`IntentRecognitionTest`、`TestConfig`（环境绑定/过时）；补 `junit-vintage-engine` 使 JUnit4 测试可执行
+- **ragcore 教学 RAG 组件拆并**（LLMentor/rag 46 文件，包前缀 `top.kdla.framework.llm.mentor.ragcore`）：client←model（Director/Movie/DirectorMoviesDto）；interfaces←controller×14；application←service/generate/router/rewriter×7；integration←reader/splitter/rerank/embedding/es/cleaner/fileserver/repo/config×22；丢弃 `RagApplication`、`test.md`、`WordHeaderTextSplitterTest`（main 方法演示类）
+  - `RagMetadataController`/`RagRetrieverController` 的 `PgVectorStore` 改为 `VectorStore` 接口（复用现有 ES 向量存储，不引入 PG）
+  - `MinioService` 配置键修正为 `minio.bucket-name`（原 `minio.bucketName` 与主配置不一致导致启动失败）；`MinioConfiguration`/`EsClientConfiguration` 的 `@Value` 补默认值
+  - ES 客户端统一至现有 8.11.0（源工程 8.19.10，API 兼容验证通过）
+- **agentx 评测拆并**（dodo-agentx eval 闭包 35 文件，包前缀 `top.kdla.framework.llm.mentor.agentx`）：interfaces←BirdEvalController/AgentEvalController；application←service/eval×3、service/bird×3、tools×3、prompt×3、dto×9；domain←SchemaProvider、Mschema（移包 `domain.schema` 避免 split package）；integration←sqlite×4；persistence←entities×3、mapper×3
+- **agentx-core 独立模块**（`third-brain-think-agentx-core`，89 文件）：智能体框架核心库（ReactAgent/DeepSeekV4ChatModel 等），坐标改 `top.kdla.framework.llm`，包名保留 `com.agentx.ai`（纯库，无 Spring Bean）
+- `RagDemoApplication`：`scanBasePackages` 扩为 `top.kdla.framework.llm.mentor`，`@MapperScan` 增加 `agentx.mapper`
+- 配置新增（均可选、默认安全启动）：`spring.data.neo4j`（懒连接）、`spring.ai.deepseek`（api-key 空默认）、`minio.bucket-name` 消费方修正
+- 依赖新增：spring-ai-alibaba-starter-dashscope 1.1.2.2（interfaces）、spring-ai jsoup/markdown reader、data-neo4j、minio 8.5.1、commons-collections4、sqlite-jdbc 3.46.1.3（runtime）、spring-ai-starter-model-deepseek
+- 数据库变更：`db/migration.sql` 追加 `agentx_conversation` / `agentx_session` / `agentx_trace` 三表 DDL（`CREATE TABLE IF NOT EXISTS`）
+
+### 评审修复（并入后 code-review 发现）
+
+- 修复 Neo4j repository 未注册导致启动失败：`RagDemoApplication` 增加 `@EnableNeo4jRepositories(basePackages = "top.kdla.framework.llm.mentor")`（repository 自动扫描仅覆盖启动类所在包，`ragcore.repo` 为兄弟包不被扫描）
+- 修复 ES bean 冲突与误注入：ragcore `EsClientConfiguration` bean 改名 `ragcoreElasticsearchClient`（原与主工程 `elasticsearchClient` 同名，开启 ES 时 `BeanDefinitionOverrideException`）；`ElasticSearchService` 与主工程 3 处 `@Autowired(required=false)` 注入点（`DocumentProcessServiceImpl`/`BrotherAwareRetriever`/`HybridRetrievalService`）补 `@Qualifier`，确保 ES 关闭时主工程降级逻辑不被 ragcore 懒连接 bean 破坏
+- 移除 ragcore 硬编码 DashScope API Key（`RerankUtil`/`RagImageController`），改读环境变量 `DASHSCOPE_API_KEY`，缺失时抛出明确异常
+- `application.yml` Neo4j 注释端点修正 `/ragcore/graph` → `/rag/graph`；AGENTS.md 规范 3 修订为可选组件两种安全模式（配置开关默认关闭 或 懒连接）
+
 ### 工程重构（Breaking）
 
 - 单模块 `rag-demo` 拆分为 Maven 多模块工程，artifactId 由 `LLMentor` 更名为 `third-brain-think`，分层遵循 COLA 风格：
